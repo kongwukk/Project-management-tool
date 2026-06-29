@@ -2,6 +2,10 @@
 
 一个本地桌面项目管理对话工具。它会读取项目目录下的 Markdown 文件作为上下文，支持上传 Office 文档，并通过 OpenAI 兼容接口调用 DeepSeek、OpenAI、本地模型或其他大模型服务。
 
+## 运行平台
+
+本项目是 Python + Tkinter 桌面应用，不依赖 Linux 专属能力，支持 Windows 10/11、Linux 和 macOS。当前仓库已提供 Windows 10 推荐启动脚本。
+
 ## 功能
 
 - 项目上下文感知：扫描指定目录下的 `.md` 文件，提取标题、任务列表、表格片段和正文。
@@ -10,19 +14,59 @@
 - 桌面对话界面：模型下拉、API 配置弹窗、项目路径刷新、附件列表、时间戳消息记录。
 - 本地持久化：配置保存到 `~/.project-assistant/config.json`，会话保存到 `~/.project-assistant/sessions/`。
 
-## 安装
+## Windows 10 使用方式
+
+### 环境要求
+
+- Windows 10 64 位。
+- Python 3.10 或更高版本。
+- 安装 Python 时建议勾选 `Add python.exe to PATH`。
+- 首次安装依赖和调用在线模型时需要网络连接。
+
+### 推荐启动
+
+在项目根目录双击运行：
+
+```bat
+scripts\run_windows.bat
+```
+
+该脚本会自动：
+
+1. 切换到项目根目录。
+2. 创建 `.venv` 虚拟环境。
+3. 安装 `requirements.txt` 中的依赖。
+4. 启动桌面程序。
+
+### 手动启动
+
+如果你更习惯命令行，也可以在 PowerShell 或 CMD 中执行：
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python main.py
+```
+
+如果系统没有 `py` 启动器，可以把第一行改为：
+
+```powershell
+python -m venv .venv
+```
+
+## Linux/macOS 使用方式
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
 pip install -r requirements.txt
+python main.py
 ```
 
 Tkinter 通常随 Python 一起安装。如果你的 Python 发行版未包含 Tkinter，需要额外安装对应系统包。
-
-## 启动
-
-```bash
-python main.py
-```
 
 首次启动后：
 
@@ -44,6 +88,7 @@ project_assistant/
   models.py            # 数据模型
   ui/app.py            # Tkinter 桌面界面
 projects/              # 默认 Markdown 项目目录
+scripts/run_windows.bat # Windows 10 一键启动脚本
 main.py                # 应用入口
 ```
 
@@ -59,4 +104,3 @@ API Key：你的 DeepSeek API Key
 ## 安全说明
 
 API Key 会以轻量本地加密形式写入配置文件，避免明文保存。若要用于生产环境，建议进一步接入系统密钥链或企业级密钥管理方案。
-
