@@ -71,6 +71,25 @@ class ProjectContextManager:
             self.refresh()
         return f"{len(self.documents)} 个 Markdown 文件，刷新时间 {self.last_refreshed_at or '未刷新'}"
 
+    def can_write_current_markdown_file(self) -> bool:
+        return self._is_markdown_file_target()
+
+    def current_markdown_file(self) -> Path:
+        if not self.can_write_current_markdown_file():
+            raise ValueError("当前项目目标不是单个 .md 文件，不能自动写回。")
+        self._ensure_target_exists()
+        return self.project_dir
+
+    def read_current_markdown(self) -> str:
+        return self.current_markdown_file().read_text(encoding="utf-8", errors="replace")
+
+    def write_current_markdown(self, content: str) -> Path:
+        target = self.current_markdown_file()
+        normalized = content.rstrip() + "\n"
+        target.write_text(normalized, encoding="utf-8")
+        self.refresh()
+        return target
+
     def _iter_markdown_files(self) -> Iterable[Path]:
         if self._is_markdown_file_target():
             return [self.project_dir] if self.project_dir.exists() else []

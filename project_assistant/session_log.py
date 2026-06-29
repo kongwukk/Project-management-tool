@@ -18,8 +18,18 @@ class SessionLogger:
         target.write_text(self._render_markdown(messages), encoding="utf-8")
         return target
 
+    def save_log(self, messages: Sequence[ChatMessage], path: Optional[Path] = None) -> Path:
+        self.sessions_dir.mkdir(parents=True, exist_ok=True)
+        target = path or self._new_log_path()
+        target.write_text(self.render_plain_text(messages), encoding="utf-8")
+        return target
+
     def _new_session_path(self) -> Path:
         filename = datetime.now().strftime("%Y%m%d_%H%M%S.md")
+        return self.sessions_dir / filename
+
+    def _new_log_path(self) -> Path:
+        filename = datetime.now().strftime("%Y%m%d_%H%M%S.log")
         return self.sessions_dir / filename
 
     def _render_markdown(self, messages: Sequence[ChatMessage]) -> str:
@@ -41,3 +51,19 @@ class SessionLogger:
             )
         return "\n".join(lines).rstrip() + "\n"
 
+    def render_plain_text(self, messages: Sequence[ChatMessage]) -> str:
+        lines = [
+            "对话记录",
+            f"保存时间：{datetime.now().isoformat(timespec='seconds')}",
+            "",
+        ]
+        for message in messages:
+            speaker = {"user": "用户", "assistant": "助手", "system": "系统"}.get(message.role, message.role)
+            lines.extend(
+                [
+                    f"[{message.timestamp}] {speaker}",
+                    message.content.strip(),
+                    "",
+                ]
+            )
+        return "\n".join(lines).rstrip() + "\n"

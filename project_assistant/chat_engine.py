@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Dict, List, Sequence
 
 from .context import ProjectContextManager
@@ -30,6 +31,47 @@ class ChatEngine:
         messages = self.build_messages(user_input, history=history, attachments=attachments)
         return self.model_client.chat(model_config, messages)
 
+    def build_updated_markdown(
+        self,
+        *,
+        user_input: str,
+        assistant_reply: str,
+        current_markdown: str,
+        file_path: str,
+        attachments: Sequence[ParsedDocument],
+        model_config: ModelConfig,
+    ) -> str:
+        attachment_text = ""
+        if attachments:
+            attachment_text = "\n\n".join(document.prompt_block() for document in attachments)
+
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "你是项目 Markdown 文件维护助手。"
+                    "你的任务是根据用户需求、当前项目文件内容、附件内容和上一轮助手回复，"
+                    "输出更新后的完整 Markdown 文件内容。"
+                    "只输出 Markdown 正文，不要解释，不要代码围栏。"
+                    "必须保留原文件中仍然有用的信息，只执行用户明确要求的变更。"
+                    "如果用户要求记录进展、添加任务、勾选完成、修改状态或更新计划，请直接整合到文件中。"
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"目标文件：{file_path}\n\n"
+                    f"当前 Markdown 内容：\n{current_markdown}\n\n"
+                    f"用户需求：\n{user_input}\n\n"
+                    f"上一轮助手回复：\n{assistant_reply}\n\n"
+                    f"本轮附件内容：\n{attachment_text or '（无）'}\n\n"
+                    "请输出更新后的完整 Markdown 文件内容。"
+                ),
+            },
+        ]
+        updated = self.model_client.chat(model_config, messages)
+        return _strip_markdown_fence(updated)
+
     def build_messages(
         self,
         user_input: str,
@@ -55,3 +97,8 @@ class ChatEngine:
         messages.append({"role": "user", "content": user_content})
         return messages
 
+
+def _strip_markdown_fence(text: str) -> str:
+    stripped = text.strip()
+    match = re.fullmatch(r"```(?:markdown|md)?\s*(.*?)\s*```", stripped, flags=re.IGNORECASE | re.DOTALL)
+    return match.group(1).strip() if match else stripped

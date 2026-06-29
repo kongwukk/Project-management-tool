@@ -5,7 +5,7 @@
 ## 2.1 主界面
 
 - 文件：`project_assistant/ui/app.py`
-- 内容：模型下拉选择、API 配置弹窗、项目 Markdown 文件选择与刷新、滚动对话区、多行输入框、附件上传与移除、消息时间戳、Enter/Shift+Enter 交互。
+- 内容：模型下拉选择、API 配置弹窗、项目 Markdown 文件选择与刷新、滚动对话区、多行输入框、附件上传与移除、消息时间戳、复制对话、保存 `.log` 日志、Enter/Shift+Enter 交互。
 
 ## 2.2 模型管理
 
@@ -28,7 +28,7 @@
 
 - 文件：`project_assistant/chat_engine.py`
 - 文件：`project_assistant/model_client.py`
-- 内容：组装系统提示、历史对话、当前用户输入和附件内容，通过 OpenAI 兼容客户端请求模型。
+- 内容：组装系统提示、历史对话、当前用户输入和附件内容，通过 OpenAI 兼容客户端请求模型；当用户明确要求更新项目文件时，生成完整的新 Markdown 内容并写回当前 `.md` 文件。
 
 ## 2.6 配置持久化
 
@@ -38,4 +38,4 @@
 ## 2.7 日志与记录
 
 - 文件：`project_assistant/session_log.py`
-- 内容：将每次会话保存为 Markdown 文件，路径为 `~/.project-assistant/sessions/`。
+- 内容：将每次会话保存为 Markdown 文件；用户也可以手动导出按当前时间命名的 `.log` 文件，路径为 `~/.project-assistant/sessions/`。

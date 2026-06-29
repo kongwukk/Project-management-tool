@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -14,6 +15,26 @@ from ..file_processor import FileProcessingError, SUPPORTED_EXTENSIONS, parse_of
 from ..model_client import OpenAICompatibleClient
 from ..models import AppConfig, ChatMessage, ModelConfig, ParsedDocument
 from ..session_log import SessionLogger
+
+
+PROJECT_UPDATE_PATTERNS = [
+    re.compile(
+        r"(更新|修改|改写|改成|写入|记录|添加|新增|删除|移除|保存|同步|归档|补充|勾选|完成|关闭).{0,30}"
+        r"(项目|文件|md|markdown|状态|进度|任务|待办|计划)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(项目|文件|md|markdown|状态|进度|任务|待办|计划).{0,30}"
+        r"(更新|修改|改写|改成|写入|记录|添加|新增|删除|移除|保存|同步|归档|补充|勾选|完成|关闭)",
+        re.IGNORECASE,
+    ),
+    re.compile(r"(把|将).{0,80}(写入|记录到|保存到|添加到|更新到).{0,40}(md|markdown|文件|项目)", re.IGNORECASE),
+    re.compile(
+        r"(append|update|modify|rewrite|write|save|record|add|remove|delete).{0,50}"
+        r"(md|markdown|file|project|task|todo|status|plan)",
+        re.IGNORECASE,
+    ),
+]
 
 
 class ProjectAssistantApp(tk.Tk):
@@ -66,7 +87,7 @@ class ProjectAssistantApp(tk.Tk):
 
         top = ttk.Frame(self, style="Root.TFrame", padding=(12, 10, 12, 8))
         top.grid(row=0, column=0, sticky="ew")
-        top.columnconfigure(5, weight=1)
+        top.columnconfigure(7, weight=1)
 
         ttk.Label(top, text="模型", style="Muted.TLabel").grid(row=0, column=0, sticky="w")
         self.model_var = tk.StringVar()
@@ -79,11 +100,13 @@ class ProjectAssistantApp(tk.Tk):
         ttk.Button(top, text="刷新", command=lambda: self.refresh_project_context(show_message=True)).grid(
             row=0,
             column=4,
-            padx=(0, 12),
+            padx=(0, 8),
         )
+        ttk.Button(top, text="复制对话", command=self.copy_conversation).grid(row=0, column=5, padx=(0, 8))
+        ttk.Button(top, text="保存日志", command=self.save_conversation_log).grid(row=0, column=6, padx=(0, 12))
 
         self.project_path_var = tk.StringVar()
-        ttk.Label(top, textvariable=self.project_path_var, style="Muted.TLabel").grid(row=0, column=5, sticky="ew")
+        ttk.Label(top, textvariable=self.project_path_var, style="Muted.TLabel").grid(row=0, column=7, sticky="ew")
 
         center = ttk.Frame(self, style="Panel.TFrame", padding=(12, 12, 12, 12))
         center.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 8))
@@ -106,6 +129,10 @@ class ProjectAssistantApp(tk.Tk):
         self.chat_text.configure(yscrollcommand=scrollbar.set)
         self.chat_text.grid(row=0, column=0, sticky="nsew")
         scrollbar.grid(row=0, column=1, sticky="ns")
+        self.chat_text.bind("<Control-a>", self._select_all_chat)
+        self.chat_text.bind("<Control-A>", self._select_all_chat)
+        self.chat_text.bind("<Control-c>", self._copy_chat_selection)
+        self.chat_text.bind("<Control-C>", self._copy_chat_selection)
         self._configure_chat_tags()
 
         bottom = ttk.Frame(self, style="Root.TFrame", padding=(12, 0, 12, 12))
@@ -252,6 +279,22 @@ class ProjectAssistantApp(tk.Tk):
         if show_message:
             self._append_system_message(f"项目上下文已刷新：{self.context_manager.summary()}")
 
+    def copy_conversation(self) -> None:
+        text = self.logger.render_plain_text(self.messages)
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        self.status_var.set("对话内容已复制到剪贴板")
+
+    def save_conversation_log(self) -> None:
+        try:
+            path = self.logger.save_log(self.messages)
+        except Exception as exc:
+            messagebox.showerror("保存失败", str(exc))
+            self.status_var.set("日志保存失败")
+            return
+        self.status_var.set(f"日志已保存：{path}")
+        messagebox.showinfo("保存完成", f"对话日志已保存到：\n{path}")
+
     def upload_files(self) -> None:
         pattern = " ".join(f"*{ext}" for ext in sorted(SUPPORTED_EXTENSIONS))
         paths = filedialog.askopenfilenames(
@@ -366,19 +409,59 @@ class ProjectAssistantApp(tk.Tk):
                     attachments=attachments,
                     model_config=model,
                 )
-                self.after(0, lambda: self._finish_reply(reply))
+                update_path: Optional[Path] = None
+                update_error: Optional[str] = None
+                if self._should_update_project_file(prompt_text):
+                    self.after(0, lambda: self.status_var.set("正在更新项目 Markdown 文件..."))
+                    try:
+                        if not self.context_manager.can_write_current_markdown_file():
+                            update_error = "当前项目目标不是单个 .md 文件，请先点击“选择项目文件”选择要更新的 Markdown 文件。"
+                        else:
+                            current_file = self.context_manager.current_markdown_file()
+                            current_markdown = self.context_manager.read_current_markdown()
+                            updated_markdown = self.engine.build_updated_markdown(
+                                user_input=prompt_text,
+                                assistant_reply=reply,
+                                current_markdown=current_markdown,
+                                file_path=str(current_file),
+                                attachments=attachments,
+                                model_config=model,
+                            )
+                            if not updated_markdown.strip():
+                                raise ValueError("模型返回的 Markdown 内容为空。")
+                            update_path = self.context_manager.write_current_markdown(updated_markdown)
+                    except Exception as exc:
+                        update_error = str(exc)
+
+                self.after(0, lambda: self._finish_reply(reply, update_path, update_error))
             except Exception as exc:
                 self.after(0, lambda error=exc: self._finish_error(error))
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _finish_reply(self, reply: str) -> None:
+    def _finish_reply(
+        self,
+        reply: str,
+        update_path: Optional[Path] = None,
+        update_error: Optional[str] = None,
+    ) -> None:
         assistant_message = ChatMessage(role="assistant", content=reply.strip() or "（模型未返回内容）")
         self.messages.append(assistant_message)
         self._append_chat_message(assistant_message)
+
+        if update_path:
+            system_message = ChatMessage(role="system", content=f"已根据本轮需求更新项目 Markdown 文件：{update_path}")
+            self.messages.append(system_message)
+            self._append_chat_message(system_message)
+            self.project_path_var.set(f"{self.context_manager.project_dir}  ·  1 个 Markdown 文件")
+        elif update_error:
+            system_message = ChatMessage(role="system", content=f"项目 Markdown 文件未更新：{update_error}")
+            self.messages.append(system_message)
+            self._append_chat_message(system_message)
+
         self._save_session()
         self._set_busy(False)
-        self.status_var.set("回复完成")
+        self.status_var.set("回复完成，项目文件已更新" if update_path else "回复完成")
 
     def _finish_error(self, error: Exception) -> None:
         system_message = ChatMessage(role="system", content=f"请求失败：{error}")
@@ -400,6 +483,9 @@ class ProjectAssistantApp(tk.Tk):
         self.send_button.configure(state=state)
         self.upload_button.configure(state=state)
 
+    def _should_update_project_file(self, user_text: str) -> bool:
+        return any(pattern.search(user_text) for pattern in PROJECT_UPDATE_PATTERNS)
+
     def _append_system_message(self, content: str) -> None:
         message = ChatMessage(role="system", content=content)
         self.messages.append(message)
@@ -416,6 +502,20 @@ class ProjectAssistantApp(tk.Tk):
         self.chat_text.insert("end", f"{message.content.strip()}\n\n", body_tag)
         self.chat_text.configure(state="disabled")
         self.chat_text.see("end")
+
+    def _select_all_chat(self, _event: tk.Event) -> str:
+        self.chat_text.tag_add("sel", "1.0", "end-1c")
+        return "break"
+
+    def _copy_chat_selection(self, _event: tk.Event) -> str:
+        try:
+            text = self.chat_text.get("sel.first", "sel.last")
+        except tk.TclError:
+            text = self.logger.render_plain_text(self.messages)
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        self.status_var.set("已复制对话内容")
+        return "break"
 
 
 class ModelConfigDialog(tk.Toplevel):
