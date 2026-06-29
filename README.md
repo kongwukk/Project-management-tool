@@ -11,6 +11,7 @@
 - 项目上下文感知：扫描指定目录下的 `.md` 文件，提取标题、任务列表、表格片段和正文。
 - 多模型配置：支持新增、编辑、删除、切换、测试 OpenAI 兼容模型 API。
 - Office 文件解析：支持 `.docx`、`.pptx`、`.xlsx`，解析结果会随本轮对话注入。
+- 旧项目导入：支持从 Word、Excel、OneNote 导出文件、文本或 Markdown 资料生成新的项目 `.md` 文件。
 - 桌面对话界面：模型下拉、API 配置弹窗、项目路径刷新、附件列表、时间戳消息记录。
 - 对话复制与日志：支持复制聊天内容，或按当前时间导出 `.log` 对话日志。
 - 自动更新项目文件：当用户明确要求更新项目状态、任务、进度或 Markdown 文件时，模型会生成新的项目 `.md` 内容并写回当前选择的文件。
@@ -74,11 +75,26 @@ Tkinter 通常随 Python 一起安装。如果你的 Python 发行版未包含 T
 
 1. 点击 `配置 API`，填写模型名称、API 地址、API Key 等参数。
 2. 点击 `选择项目文件`，选择一个 `.md` Markdown 文件作为当前项目上下文。
-3. 可点击 `上传文件` 加载 Word、PowerPoint 或 Excel 文件。
-4. 在底部输入框输入问题，按 Enter 发送，按 Shift+Enter 换行。
-5. 点击 `复制对话` 可复制当前会话；点击 `保存日志` 会在 `~/.project-assistant/sessions/` 下生成按当前时间命名的 `.log` 文件。
+3. 如果已有旧项目资料，点击 `导入旧项目`，选择 Word、Excel、OneNote 或文本文件，保存为新的项目 `.md`。
+4. 可点击 `上传文件` 加载 Word、PowerPoint 或 Excel 文件作为本轮对话附件。
+5. 在底部输入框输入问题，按 Enter 发送，按 Shift+Enter 换行。
+6. 点击 `复制对话` 可复制当前会话；点击 `保存日志` 会在 `~/.project-assistant/sessions/` 下生成按当前时间命名的 `.log` 文件。
 
 默认配置仍会读取仓库内的 `projects/` 示例目录；一旦点击 `选择项目文件`，后续切换就会以选中的单个 `.md` 文件为上下文。
+
+## 导入旧项目资料
+
+点击 `导入旧项目` 后，程序会把旧项目管理资料转换成一个结构化 Markdown 文件，并自动切换为当前项目文件。
+
+支持格式：
+
+- Word：`.docx`
+- Excel：`.xls`、`.xlsx`、`.xlsm`
+- OneNote：`.one`、`.mht`、`.mhtml`、`.html`、`.htm`
+- 文本：`.txt`、`.md`
+- 也兼容 PowerPoint：`.pptx`
+
+OneNote 原生 `.one` 是封闭二进制格式，程序会尽力提取其中可读文本。为了获得更稳定的导入效果，推荐在 OneNote 中先导出为 `.docx`、`.mht` 或 `.html` 后再导入。
 
 ## 更新项目 Markdown 文件
 
@@ -103,6 +119,7 @@ project_assistant/
   config_store.py      # 配置持久化与 API Key 本地加密保存
   context.py           # Markdown 项目上下文扫描与合并
   file_processor.py    # Office 文件解析
+  project_importer.py  # 旧项目资料导入并生成项目 Markdown
   model_client.py      # OpenAI 兼容模型调用与连接测试
   chat_engine.py       # Prompt 组装与对话引擎
   session_log.py       # Markdown 会话记录与 .log 导出

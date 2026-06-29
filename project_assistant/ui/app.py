@@ -14,6 +14,7 @@ from ..context import ProjectContextManager
 from ..file_processor import FileProcessingError, SUPPORTED_EXTENSIONS, parse_office_file
 from ..model_client import OpenAICompatibleClient
 from ..models import AppConfig, ChatMessage, ModelConfig, ParsedDocument
+from ..project_importer import IMPORT_EXTENSIONS, ProjectImportError, import_project_files
 from ..session_log import SessionLogger
 
 
@@ -87,7 +88,7 @@ class ProjectAssistantApp(tk.Tk):
 
         top = ttk.Frame(self, style="Root.TFrame", padding=(12, 10, 12, 8))
         top.grid(row=0, column=0, sticky="ew")
-        top.columnconfigure(7, weight=1)
+        top.columnconfigure(8, weight=1)
 
         ttk.Label(top, text="模型", style="Muted.TLabel").grid(row=0, column=0, sticky="w")
         self.model_var = tk.StringVar()
@@ -95,18 +96,19 @@ class ProjectAssistantApp(tk.Tk):
         self.model_combo.grid(row=0, column=1, padx=(8, 8), sticky="w")
         self.model_combo.bind("<<ComboboxSelected>>", self._on_model_selected)
 
-        ttk.Button(top, text="配置 API", command=self._open_model_dialog).grid(row=0, column=2, padx=(0, 12))
+        ttk.Button(top, text="配置 API", command=self._open_model_dialog).grid(row=0, column=2, padx=(0, 8))
         ttk.Button(top, text="选择项目文件", command=self._choose_project_file).grid(row=0, column=3, padx=(0, 8))
+        ttk.Button(top, text="导入旧项目", command=self.import_legacy_project).grid(row=0, column=4, padx=(0, 8))
         ttk.Button(top, text="刷新", command=lambda: self.refresh_project_context(show_message=True)).grid(
             row=0,
-            column=4,
+            column=5,
             padx=(0, 8),
         )
-        ttk.Button(top, text="复制对话", command=self.copy_conversation).grid(row=0, column=5, padx=(0, 8))
-        ttk.Button(top, text="保存日志", command=self.save_conversation_log).grid(row=0, column=6, padx=(0, 12))
+        ttk.Button(top, text="复制对话", command=self.copy_conversation).grid(row=0, column=6, padx=(0, 8))
+        ttk.Button(top, text="保存日志", command=self.save_conversation_log).grid(row=0, column=7, padx=(0, 12))
 
         self.project_path_var = tk.StringVar()
-        ttk.Label(top, textvariable=self.project_path_var, style="Muted.TLabel").grid(row=0, column=7, sticky="ew")
+        ttk.Label(top, textvariable=self.project_path_var, style="Muted.TLabel").grid(row=0, column=8, sticky="ew")
 
         center = ttk.Frame(self, style="Panel.TFrame", padding=(12, 12, 12, 12))
         center.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 8))
@@ -265,6 +267,71 @@ class ProjectAssistantApp(tk.Tk):
         self.store.set_project_dir(self.app_config, selected)
         self.context_manager.set_project_dir(selected)
         self.refresh_project_context(show_message=True)
+
+    def import_legacy_project(self) -> None:
+        patterns = " ".join(f"*{extension}" for extension in sorted(IMPORT_EXTENSIONS))
+        paths = filedialog.askopenfilenames(
+            title="导入旧项目管理文件",
+            filetypes=[
+                ("支持的项目资料", patterns),
+                ("Word", "*.docx"),
+                ("Excel", "*.xls *.xlsx *.xlsm"),
+                ("OneNote", "*.one *.mht *.mhtml *.html *.htm"),
+                ("文本/Markdown", "*.txt *.md"),
+                ("所有文件", "*.*"),
+            ],
+        )
+        if not paths:
+            return
+
+        first_source = Path(paths[0])
+        current_target = Path(self.app_config.project_dir)
+        initial_dir = current_target.parent if current_target.suffix.lower() == ".md" else current_target
+        output_path = filedialog.asksaveasfilename(
+            title="保存生成的项目 Markdown 文件",
+            initialdir=str(initial_dir),
+            initialfile=f"{first_source.stem}_project.md",
+            defaultextension=".md",
+            filetypes=[
+                ("Markdown 文件", "*.md"),
+                ("所有文件", "*.*"),
+            ],
+        )
+        if not output_path:
+            return
+
+        self._set_busy(True)
+        self.status_var.set("正在导入旧项目资料...")
+
+        def worker() -> None:
+            try:
+                result = import_project_files(paths, output_path, title=Path(output_path).stem)
+                self.after(0, lambda: self._finish_project_import(result.output_path, len(result.documents), result.warnings))
+            except ProjectImportError as exc:
+                self.after(0, lambda error=exc: self._finish_project_import_error(error))
+            except Exception as exc:
+                self.after(0, lambda error=exc: self._finish_project_import_error(error))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _finish_project_import(self, output_path: Path, count: int, warnings: List[str]) -> None:
+        self.store.set_project_dir(self.app_config, str(output_path))
+        self.context_manager.set_project_dir(output_path)
+        self.refresh_project_context(show_message=True)
+        self._set_busy(False)
+
+        message = f"已导入 {count} 个旧项目文件并生成 Markdown：{output_path}"
+        self._append_system_message(message)
+        self.status_var.set(message)
+        if warnings:
+            messagebox.showwarning("导入完成，但部分文件失败", "\n".join(warnings))
+        else:
+            messagebox.showinfo("导入完成", message)
+
+    def _finish_project_import_error(self, error: Exception) -> None:
+        self._set_busy(False)
+        self.status_var.set("旧项目导入失败")
+        messagebox.showerror("导入失败", str(error))
 
     def refresh_project_context(self, *, show_message: bool) -> None:
         try:

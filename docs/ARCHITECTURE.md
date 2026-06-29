@@ -5,7 +5,7 @@
 ## 2.1 主界面
 
 - 文件：`project_assistant/ui/app.py`
-- 内容：模型下拉选择、API 配置弹窗、项目 Markdown 文件选择与刷新、滚动对话区、多行输入框、附件上传与移除、消息时间戳、复制对话、保存 `.log` 日志、Enter/Shift+Enter 交互。
+- 内容：模型下拉选择、API 配置弹窗、项目 Markdown 文件选择、旧项目资料导入、项目刷新、滚动对话区、多行输入框、附件上传与移除、消息时间戳、复制对话、保存 `.log` 日志、Enter/Shift+Enter 交互。
 
 ## 2.2 模型管理
 
@@ -18,6 +18,11 @@
 
 - 文件：`project_assistant/file_processor.py`
 - 内容：解析 `.docx` 段落与表格、`.pptx` 幻灯片文本与备注、`.xlsx` 工作表内容，并输出结构化文本。
+
+## 2.3.1 旧项目资料导入
+
+- 文件：`project_assistant/project_importer.py`
+- 内容：把 Word、Excel、OneNote 导出文件、文本或 Markdown 资料转换为新的项目 `.md` 文件。OneNote 原生 `.one` 采用可读文本提取方式，推荐优先导入 OneNote 导出的 `.docx`、`.mht` 或 `.html`。
 
 ## 2.4 项目上下文管理
 
