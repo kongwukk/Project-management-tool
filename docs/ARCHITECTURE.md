@@ -5,7 +5,7 @@
 ## 2.1 主界面
 
 - 文件：`project_assistant/ui/app.py`
-- 内容：模型下拉选择、API 配置弹窗、项目路径选择与刷新、滚动对话区、多行输入框、附件上传与移除、消息时间戳、Enter/Shift+Enter 交互。
+- 内容：模型下拉选择、API 配置弹窗、项目 Markdown 文件选择与刷新、滚动对话区、多行输入框、附件上传与移除、消息时间戳、Enter/Shift+Enter 交互。
 
 ## 2.2 模型管理
 
@@ -22,7 +22,7 @@
 ## 2.4 项目上下文管理
 
 - 文件：`project_assistant/context.py`
-- 内容：扫描项目目录下所有 Markdown 文件，提取标题、任务列表、表格片段，并合并为系统提示上下文。界面支持手动刷新，每次发送前也会刷新。
+- 内容：支持读取单个项目 Markdown 文件，也兼容扫描项目目录下所有 Markdown 文件；提取标题、任务列表、表格片段，并合并为系统提示上下文。界面支持手动刷新，每次发送前也会刷新。
 
 ## 2.5 对话引擎
 
@@ -39,4 +39,3 @@
 
 - 文件：`project_assistant/session_log.py`
 - 内容：将每次会话保存为 Markdown 文件，路径为 `~/.project-assistant/sessions/`。
-

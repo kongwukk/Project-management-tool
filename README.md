@@ -71,9 +71,11 @@ Tkinter 通常随 Python 一起安装。如果你的 Python 发行版未包含 T
 首次启动后：
 
 1. 点击 `配置 API`，填写模型名称、API 地址、API Key 等参数。
-2. 点击 `选择项目`，选择包含 Markdown 文件的项目目录；默认目录是仓库内的 `projects/`。
+2. 点击 `选择项目文件`，选择一个 `.md` Markdown 文件作为当前项目上下文。
 3. 可点击 `上传文件` 加载 Word、PowerPoint 或 Excel 文件。
 4. 在底部输入框输入问题，按 Enter 发送，按 Shift+Enter 换行。
+
+默认配置仍会读取仓库内的 `projects/` 示例目录；一旦点击 `选择项目文件`，后续切换就会以选中的单个 `.md` 文件为上下文。
 
 ## 目录结构
 

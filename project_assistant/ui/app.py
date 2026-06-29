@@ -75,7 +75,7 @@ class ProjectAssistantApp(tk.Tk):
         self.model_combo.bind("<<ComboboxSelected>>", self._on_model_selected)
 
         ttk.Button(top, text="配置 API", command=self._open_model_dialog).grid(row=0, column=2, padx=(0, 12))
-        ttk.Button(top, text="选择项目", command=self._choose_project_dir).grid(row=0, column=3, padx=(0, 8))
+        ttk.Button(top, text="选择项目文件", command=self._choose_project_file).grid(row=0, column=3, padx=(0, 8))
         ttk.Button(top, text="刷新", command=lambda: self.refresh_project_context(show_message=True)).grid(
             row=0,
             column=4,
@@ -148,7 +148,7 @@ class ProjectAssistantApp(tk.Tk):
         ttk.Label(bottom, textvariable=self.status_var, style="Status.TLabel").grid(row=2, column=0, sticky="w", pady=(8, 0))
 
         self._render_attachments()
-        self._append_system_message("已启动。请选择项目目录、配置 API，然后开始对话。")
+        self._append_system_message("已启动。请选择项目 Markdown 文件、配置 API，然后开始对话。")
 
     def _configure_chat_tags(self) -> None:
         self.chat_text.tag_configure("user_header", foreground="#255f9f", font=("Microsoft YaHei UI", 9, "bold"))
@@ -219,13 +219,21 @@ class ProjectAssistantApp(tk.Tk):
         self.engine.history_window = self.app_config.history_window
         self._refresh_model_combo()
 
-    def _choose_project_dir(self) -> None:
-        selected = filedialog.askdirectory(
-            title="选择项目 Markdown 目录",
-            initialdir=self.app_config.project_dir,
-            mustexist=False,
+    def _choose_project_file(self) -> None:
+        current_target = Path(self.app_config.project_dir)
+        initial_dir = current_target.parent if current_target.suffix.lower() == ".md" else current_target
+        selected = filedialog.askopenfilename(
+            title="选择项目 Markdown 文件",
+            initialdir=str(initial_dir),
+            filetypes=[
+                ("Markdown 文件", "*.md"),
+                ("所有文件", "*.*"),
+            ],
         )
         if not selected:
+            return
+        if Path(selected).suffix.lower() != ".md":
+            messagebox.showwarning("文件格式不支持", "请选择 .md Markdown 文件。")
             return
         self.store.set_project_dir(self.app_config, selected)
         self.context_manager.set_project_dir(selected)

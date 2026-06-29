@@ -38,7 +38,7 @@ class ProjectContextManager:
         self.last_refreshed_at = ""
 
     def refresh(self) -> List[MarkdownDocument]:
-        self.project_dir.mkdir(parents=True, exist_ok=True)
+        self._ensure_target_exists()
         documents = [self._read_markdown(path) for path in self._iter_markdown_files()]
         self.documents = documents
         self.last_refreshed_at = datetime.now().isoformat(timespec="seconds")
@@ -49,11 +49,11 @@ class ProjectContextManager:
             self.refresh()
 
         if not self.documents:
-            return f"{self.prefix}\n\n项目目录 `{self.project_dir}` 下暂未发现 Markdown 文件。"
+            return f"{self.prefix}\n\n项目目标 `{self.project_dir}` 下暂未发现 Markdown 文件。"
 
         parts: List[str] = [
             self.prefix,
-            f"项目目录：{self.project_dir}",
+            f"项目目标：{self.project_dir}",
             f"刷新时间：{self.last_refreshed_at}",
             f"Markdown 文件数：{len(self.documents)}",
             "",
@@ -72,6 +72,9 @@ class ProjectContextManager:
         return f"{len(self.documents)} 个 Markdown 文件，刷新时间 {self.last_refreshed_at or '未刷新'}"
 
     def _iter_markdown_files(self) -> Iterable[Path]:
+        if self._is_markdown_file_target():
+            return [self.project_dir] if self.project_dir.exists() else []
+
         excluded = {".git", ".venv", "__pycache__", "node_modules", ".project-assistant"}
         files = []
         for path in self.project_dir.rglob("*.md"):
@@ -86,7 +89,7 @@ class ProjectContextManager:
         tasks = [line.strip() for line in content.splitlines() if TASK_PATTERN.match(line)]
         tables = _extract_tables(content)
         try:
-            relative_path = str(path.relative_to(self.project_dir))
+            relative_path = str(path.relative_to(self._relative_base()))
         except ValueError:
             relative_path = str(path)
         return MarkdownDocument(
@@ -117,6 +120,23 @@ class ProjectContextManager:
         parts.append("")
         return "\n".join(parts)
 
+    def _ensure_target_exists(self) -> None:
+        if self._is_markdown_file_target():
+            self.project_dir.parent.mkdir(parents=True, exist_ok=True)
+            if not self.project_dir.exists():
+                self.project_dir.write_text("# 项目状态\n\n", encoding="utf-8")
+            return
+
+        if self.project_dir.exists() and self.project_dir.is_file():
+            raise ValueError("项目目标必须是 .md 文件或文件夹。")
+        self.project_dir.mkdir(parents=True, exist_ok=True)
+
+    def _is_markdown_file_target(self) -> bool:
+        return self.project_dir.suffix.lower() == ".md"
+
+    def _relative_base(self) -> Path:
+        return self.project_dir.parent if self._is_markdown_file_target() else self.project_dir
+
 
 def _extract_tables(content: str) -> List[str]:
     tables: List[str] = []
@@ -131,4 +151,3 @@ def _extract_tables(content: str) -> List[str]:
     if len(current) >= 2:
         tables.append("\n".join(current))
     return tables
-
